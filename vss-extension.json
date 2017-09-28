@@ -1,0 +1,79 @@
+{
+    "manifestVersion": 1,
+    "id": "leaptest-vsts-tfs-integration",
+    "name": "Leaptest - VSTS/TFS Integration",
+    "version": "1.1.0",
+    "publisher": "customatics",
+    "description": "Run Leaptest schedules and get results in JUnit format",
+    "public": true,
+    "icons": {
+        "default": "images/128x128.png",
+        "large": "images/1024x1024.png"
+    },
+    "screenshots": [
+    	{
+      		"path": "images/screen1.png"
+    	},
+    	{
+      		"path": "images/screen2.png"
+    	},
+    	{
+      		"path": "images/screen3.png"
+    	}
+    ],
+    "categories": [
+        "Build and release"
+    ],
+    "tags": [		
+        "test",
+        "tasks"
+    ],
+	"content": {
+        "details": {
+            "path": "README.md"
+        },
+        "license": {
+            "path": "license.md"
+        }
+    },
+    "links": {
+        "getstarted": {
+            "uri": "https://github.com/customatics/VSTS-TFS-Integration/blob/master/README.md"
+        },
+        "issues": {
+            "uri": "https://github.com/customatics/VSTS-TFS-Integration/issues"
+        },
+        "repository": {
+            "uri": "https://github.com/customatics/VSTS-TFS-Integration"
+        }
+	},
+    "files": [
+      {
+        "path": "TFSIntegration"
+      },
+      {
+        "path": "images",
+        "addressable": true
+      }
+    ],
+    "scopes": [
+        "vso.build_execute"
+    ],
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],
+    "contributions": [
+        {
+            "id": "task-leaptest-integration",
+            "type": "ms.vss-distributed-task.task",
+            "targets": [
+                "ms.vss-distributed-task.tasks"
+            ],
+            "properties": {
+                "name": "TFSIntegration"
+            }
+        }
+    ]
+}
