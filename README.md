@@ -17,7 +17,9 @@ Leaptest is a mighty automation testing system and now it can be used for runnin
 - Write tests trace to build output log
  
 # Installing  
-Simply install the extension using VSIX-file or download the extension from Visual Studio Marketplace (available soon)
+Simply install the extension using VSIX-file or download the extension from Visual Studio Marketplace (available soon);
+If there is a problem with installing, try to install it using gallery extension manager. For this go to  
+{hostname}/tfs/_gallery/manage -> upload extension -> choose downloaded VSIX-file -> install -> choose Collection -> Confirm
 # Instruction
   
 1. Add build step "Leaptest Inegration" to your build definition.
