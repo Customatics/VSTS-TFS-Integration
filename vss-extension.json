@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "leaptest-vsts-tfs-integration",
     "name": "Leaptest - VSTS/TFS Integration",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "publisher": "customatics",
     "description": "Run Leaptest schedules and get results in JUnit format",
     "public": true,
