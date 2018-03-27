@@ -429,7 +429,7 @@ namespace TFSIntegrationConsole
         public static readonly String SCHEDULE_DETECTED = "Schedule {0}[{1}] successfully detected!";
         public static readonly String SCHEDULE_RUN_SUCCESS = "Schedule {0}[{1}] Launched Successfully!";
 
-        public static readonly String SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT = "Tried to get schedule title or id! Check connection to the controller!";
+        public static readonly String SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT = "Tried to get schedule title or id!";
         public static readonly String SCHEDULE_RUN_FAILURE = "Failed to run {0}[{1}]!";
         public static readonly String SCHEDULE_STATE_FAILURE = "Tried to get {0}[{1}] state!";
         public static readonly String NO_SUCH_SCHEDULE = "No such schedule! This may occur if try to run schedule that controller does not have. It can be deleted. Or you simply have forgotten to select schedules after changing controller address;";
@@ -1196,8 +1196,7 @@ namespace TFSIntegrationConsole
 }
 "@
 
-$logFile = Split-Path -Path $report
-$logFile = $logFile, "LeaptestIntegrationAgent$Env:AGENT_ID.Build$Env:BUILD_BUILDID.log" -Join "\"
+$logFile = $Env:BUILD_SOURCESDIRECTORY, "leaptestIntegrationBuild$Env:BUILD_BUILDNUMBER.log" -Join "\"
 
 Add-Type -ReferencedAssemblies $assemblies -TypeDefinition $sourceCode -Language CSharp
 $buildResult = [TFSIntegrationConsole.Program]::Call($address,$timeDelay,$doneStatusAs,$report,$logFile,$schids,$schedules)
