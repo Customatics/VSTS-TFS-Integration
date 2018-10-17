@@ -1,10 +1,10 @@
 {
   "id": "4c073640-a475-11e5-a7e5-850fa74c7a56",
-  "name": "Leaptest Integration",
-  "friendlyName": "Leaptest Integration",
-  "description": "Run Leaptest schedules",
+  "name": "Leapwork Integration",
+  "friendlyName": "Leapwork Integration",
+  "description": "Run Leapwork schedules",
   "author": "Customatics",
-  "helpMarkDown": "[More Information](https://leaptest.com/)",
+  "helpMarkDown": "[More Information](https://leapwork.com/)",
   "category": "Build",
   "visibility": [
     "Build",
@@ -14,31 +14,47 @@
         "DotNetFramework"
     ],
   "version": {
-    "Major": "1",
-    "Minor": "1",
-    "Patch": "1"
+    "Major": "3",
+    "Minor": "0",
+    "Patch": "0"
   },
   "minimumAgentVersion": "1.83.0",
-  "instanceNameFormat": "Run Leaptest schedules and get results in JUnit format",
+  "instanceNameFormat": "Run Leapwork schedules and get results in JUnit format",
   "inputs": [
     {
-      "name": "address",
+      "name": "leapworkHostname",
       "type": "string",
-      "label": "Leaptest controller URL",
-      "defaultValue": "http://{HOSTNAME}:9000",
+      "label": "Hostname",
+      "defaultValue": "",
       "required": true,
-      "helpMarkDown": "URL of your Leaptest Controller http://{HOSTNAME}:{Controller port}"
+      "helpMarkDown": "Leapwork controller hostname or IP address"
+    },
+    {
+      "name": "leapworkPort",
+      "type": "string",
+      "label": "API port",
+      "defaultValue": "9001",
+      "required": true,
+      "helpMarkDown": "Leapwork controller API port"
+    },
+	{
+      "name": "leapworkAccessKey",
+      "type": "string",
+      "label": "Access key",
+      "defaultValue": "",
+      "required": true,
+      "helpMarkDown": "Leapwork controller API access key"
     },
 	 {
-      "name": "timeDelay",
+      "name": "leapworkTimeDelay",
       "type": "string",
       "label": "Time Delay (in sec)",
-      "defaultValue": "3",
+      "defaultValue": "5",
       "required": false,
       "helpMarkDown": "During this time,the plugin is going to wait before it tries to get schedule state. If schedule is still running, plugin will wait again. By default this value is 3 seconds. It is strongly recommended not to use less value, because if plugin tries to get schedule state and the controller has not created it yet, controller will return 500 error code and your schedule will become Invalid for the plugin."
     },
     {
-      "name": "doneStatusAs",
+      "name": "leapworkDoneStatusAs",
       "type": "pickList",
       "label": "Done status",
       "defaultValue": "Failed",
@@ -50,7 +66,7 @@
       }
     },
     {
-      "name": "report",
+      "name": "leapworkReport",
       "type": "filePath",
       "label": "Report file path and name",
       "defaultValue": "report.xml",
@@ -58,7 +74,7 @@
       "helpMarkDown": "JUnit report file. The same name and path must be entered to the JUnit report publisher"
     },
     {
-      "name": "schedules",
+      "name": "leapworkSchedules",
       "type": "multiLine",
       "label": "Schedule Titles",
       "defaultValue": "",
@@ -71,7 +87,7 @@
       }
     },
     {
-      "name": "schids",
+      "name": "leapworkSchids",
       "type": "multiLine",
       "label": "Schedule Ids",
       "required": false,

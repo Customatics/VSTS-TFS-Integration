@@ -1,11 +1,11 @@
-# Leaptest - VSTS and TFS Integration  
+# Leapwork - VSTS and TFS Integration  
 
-# Joining forces of Leaptest and VSTS/TFS  
-For over 15 years [Customatics](http://customatics.com) team have been delivering high-quality software development and IT service solutions. We think outside the box, sharing fresh ideas to make our products work for you. We are proud to say that the solution we developed [Leaptest automation platform](https://leaptest.com/) is now trusted by numerous customers around the word. Now we give you a chance to combine the power of Leaptest automation platform and VSTS/ TFS management systems. Customatics team have created Leaptest integration extension for VSTS/ TFS and you are welcome to benefit from our solution.
+# Joining forces of Leapwork and VSTS/TFS  
+For over 15 years [Customatics](http://customatics.com) team have been delivering high-quality software development and IT service solutions. We think outside the box, sharing fresh ideas to make our products work for you. We are proud to say that the solution we developed [Leapwork automation platform](https://www.leapwork.com/) is now trusted by numerous customers around the word. Now we give you a chance to combine the power of Leapwork automation platform and VSTS/ TFS management systems. Customatics team have created Leapwork integration extension for VSTS/ TFS and you are welcome to benefit from our solution.
 
 # Streamline your test automation  
 A significant part of running automated cases is to monitor, inspect and react on the results. Integration with test management and bug tracking systems enables to you streamline your test automation and development cycles so that not a single flaw of the system is left unnoticed.  
-Leaptest Automation Platform is a mighty automation tool which requires no coding skills or in-depth system knowledge, letting both specialists and management build automation for practically any application.  
+Leapwork Automation Platform is a mighty automation tool which requires no coding skills or in-depth system knowledge, letting both specialists and management build automation for practically any application.  
 Now it can be used for running smoke, functional, acceptance tests, generating reports and a lot more in VSTS and TFS. 
 
 # What’s the deal?  
@@ -34,21 +34,29 @@ Alternatively, you can install it using gallery extension manager. Here is a sma
 6.	Click Confirm button
 7.	Now you are ready to get started!
 
+# Version 3.0.0 release
+- For Leapwork version 2018.1.200
+- Uses new Leapwork v3 API, API v2 is not supported
+
 # Let’s get you started!
-1.	 TFS: Add build step "Leaptest Integration" to your build definition.   
-VSTS: Add an agent phase and then add task "Leaptest Integration" to this agent phase.
-2.	Enter Leaptest controller URL (http://{HOSTNAME where LEAPTEST controller is installed}:{port number (9000 is by default)}"). 
-3.	Enter time delay (in seconds, by default 3 seconds). While schedule is running extension will check schedule state with a specified delay before the schedule is finished.
-4.	Select how the extension should process "Done" status: “Success” or “Failed”.
-5.	Enter JUnit report file name. The default name is "report.xml". 
-6.	Enter schedule titles you want to run, each one must be entered from a new line. 
-7.	Enter schedule ids, each one must be entered from a new line. Using id is preferable, because schedule title can be changed.
-8.	 TFS: Add Test build step "Publish Test Results" to your build definition.  
-VSTS: Add a task " Publish Test Results " to the previously added agent phase.
-9.	Choose JUnit report format. Enter JUnit report file name. It MUST be the same you've entered in point 5. 
-10.	Run your schedule and get results. Enjoy! 
-11.	Check build results in a detailed report, which can be found in Build summary 
-12.	Download logs if needed.
+1.	 TFS: Add build step "Leapwork Integration" to your build definition.   
+VSTS: Add an agent phase and then add task "Leapwork Integration" to this agent phase.  
+2.	Enter Leapwork controller hostname or IP-address. 
+3.  Enter your LEAPWORK controller API port, by default it is 9001.  
+4.	Enter time delay (in seconds, by default 5 seconds). While schedule is running extension will check schedule state with a specified delay before the schedule is finished.  
+5.	Select how the extension should process "Done" status: “Success” or “Failed”.  
+6.	Enter JUnit report file name. The default name is "report.xml".  
+7.	Enter schedule titles you want to run, each one must be entered from a new line.  
+8.	Enter schedule ids, each one must be entered from a new line. Using id is preferable, because schedule title can be changed.  
+9.	TFS: Add Test build step "Publish Test Results" to your build definition.  
+VSTS: Add a task " Publish Test Results " to the previously added agent phase.  
+10.	Choose JUnit report format. Enter JUnit report file name. It MUST be the same you've entered in point 5. 
+11.	Run your schedule and get results. Enjoy! 
+12.	Check build results in a detailed report, which can be found in Build summary  
+13.	Download logs if needed.  
+
+# Troubleshooting
+- If you catch an error "No such run [runId]!" after schedule starting, increase time delay parameter.
 
 # Do you need a perfectly tailored solution? 
 Visit our [website](http://customatics.com) or drop us a line by email info@customatics.com
