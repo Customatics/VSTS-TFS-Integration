@@ -34,8 +34,9 @@ Alternatively, you can install it using gallery extension manager. Here is a sma
 6.	Click Confirm button
 7.	Now you are ready to get started!
 
-# Version 3.0.0 release
-- For Leapwork version 2018.1.200
+# Update 3.1.0  
+- For LEAPWORK version 2018.2.262  
+- Fixed bug when JUnit parser interpreted all flows as "Failed"  
 - Uses new Leapwork v3 API, API v2 is not supported
 
 # Let’s get you started!

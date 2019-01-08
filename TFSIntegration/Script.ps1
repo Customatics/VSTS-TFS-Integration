@@ -298,7 +298,7 @@ namespace TFSIntegrationConsole
             Time = 0;
         }
 
-        public LeapworkRun(string runId, string title)
+        public LeapworkRun(string runId, string title, string scheduleId)
         {
             RunItems = new List<RunItem>();
             RunId = runId;
@@ -398,6 +398,7 @@ namespace TFSIntegrationConsole
         public string classname { get; set; }
 
         public Failure failure { get; set; }
+
     }
 
     public class Failure
@@ -466,6 +467,7 @@ namespace TFSIntegrationConsole
         public static readonly String GET_RUN_STATUS_URI = "{0}/api/v3/run/{1}/status";
         public static readonly String GET_RUN_ITEMS_IDS_URI = "{0}/api/v3/run/{1}/runItemIds";
         public static readonly String GET_RUN_ITEM_URI = "{0}/api/v3/runItems/{1}";
+        public static readonly String GET_RUN_ITEM_KEYFRAMES = "{0}/api/v3/runItems/{1}/keyframes";
 
         public static readonly String INVALID_SCHEDULES = "INVALID SCHEDULES";
         public static readonly String PLUGIN_NAME = "Leapwork Integration";
@@ -513,52 +515,38 @@ namespace TFSIntegrationConsole
 
         public static readonly String FAILED_TO_PARSE_STRING_TO_GUID = "Failed to parse token {0} {1} to guid value";
         public static readonly String STRING_TOKEN_NOT_FOUND = "Failed to find string token {0}";
+
+        public static readonly String INPUT_VALUES_MESSAGE = "LEAPWORK Plugin input parameters:";
+        public static readonly String INPUT_HOSTNAME_VALUE = "LEAPWORK controller hostname: {0}";
+        public static readonly String INPUT_PORT_VALUE = "LEAPWORK controller port: {0}";
+        public static readonly String INPUT_ACCESS_KEY_VALUE = "LEAPWORK controller Access Key: {0}";
+        public static readonly String INPUT_REPORT_VALUE = "JUnit report file name: {0}";
+        public static readonly String INPUT_LOG_FILEPATH_VALUE = "Log file path: {0}";
+        public static readonly String INPUT_SCHEDULE_NAMES_VALUE = "Schedule names: {0}";
+        public static readonly String INPUT_SCHEDULE_IDS_VALUE = "Schedule ids: {0}";
+        public static readonly String INPUT_DELAY_VALUE = "Delay between status checks: {0}";
+        public static readonly String INPUT_DONE_VALUE = "Done Status As: {0}";
+        public static readonly String INPUT_LEAPWORK_CONTROLLER_URL = "LEAPWORK Controller URL: {0}";
+
+        public static readonly String SCHEDULE_TITLE = "Schedule: {0}";
+        public static readonly String CASES_PASSED = "Passed testcases: {0}";
+        public static readonly String CASES_FAILED = "Failed testcases: {0}";
+        public static readonly String CASES_ERRORED = "Error testcases: {0}";
+
+        public static readonly String TOTAL_SEPARATOR = "|---------------------------------------------------------------";
+        public static readonly String TOTAL_CASES_PASSED = "| Total passed testcases: {0}";
+        public static readonly String TOTAL_CASES_FAILED = "| Total failed testcases: {0}";
+        public static readonly String TOTAL_CASES_ERROR = "| Total error testcases: {0}";
+
+        public static readonly String FAILED_TO_PARSE_RESPONSE_KEYFRAME_JSON_ARRAY = "Failed to parse response keyframe json array";
+        public static readonly String ERROR_NOTIFICATION = "There were detected case(s) with status 'Failed', 'Error', 'Inconclusive', 'Timeout' or 'Cancelled'. Please check the report or console output for details. Set the build status to FAILURE as the results of the cases are not deterministic.";
     }
 
     public class Program
     {
-        private static void MoveDirectory(string source, string target)
-        {
-            var sourcePath = source.TrimEnd('\\', ' ');
-            var targetPath = target.TrimEnd('\\', ' ');
-
-            var stack = new Stack<Folders>();
-            stack.Push(new Folders(sourcePath, targetPath));
-
-            while (stack.Count > 0)
-            {
-                var folders = stack.Pop();
-                Directory.CreateDirectory(folders.Target);
-                foreach (var file in Directory.GetFiles(folders.Source, "*.*"))
-                {
-                    File.Copy(file, Path.Combine(folders.Target, Path.GetFileName(file)));
-                }
-
-                foreach (var folder in Directory.GetDirectories(folders.Source))
-                {
-                    stack.Push(new Folders(folder, Path.Combine(folders.Target, Path.GetFileName(folder))));
-                }
-            }
-
-            Directory.Delete(sourcePath, true);
-        }
-
-        public class Folders
-        {
-            public string Source { get; private set; }
-            public string Target { get; private set; }
-
-            public Folders(string source, string target)
-            {
-                Source = source;
-                Target = target;
-            }
-        }
-
         
-
-            //Old versions of MSBuild do not support C# 6 features: Null Condition operators ?. http://bartwullems.blogspot.com.by/2016/03/tfs-build-error-invalid-expression-term.html 
-            private static Guid DefaultTokenGuidValueIfNull(String tokenName, JToken parentToken, SimpleLogger logger)
+        //Old versions of MSBuild do not support C# 6 features: Null Condition operators ?. http://bartwullems.blogspot.com.by/2016/03/tfs-build-error-invalid-expression-term.html 
+        private static Guid DefaultTokenGuidValueIfNull(String tokenName, JToken parentToken, SimpleLogger logger)
         {
             JToken token = parentToken.SelectToken(tokenName);
             if (token != null)
@@ -592,9 +580,7 @@ namespace TFSIntegrationConsole
             }
             else
             {
-                //logger.Warning(string.Format(Messages.STRING_TOKEN_NOT_FOUND, tokenName));
                 return defaultValue;
-
             }
 
         }
@@ -687,7 +673,7 @@ namespace TFSIntegrationConsole
 
         private static int GetTimeDelay(String rawTimeDelay, SimpleLogger logger)
         {
-            int defaultTimeDelay = 3;
+            int defaultTimeDelay = 5;
             int timeDelay;
             if (Int32.TryParse(rawTimeDelay, out timeDelay))
                 return timeDelay;
@@ -725,13 +711,13 @@ namespace TFSIntegrationConsole
                 }
                 catch (Exception)
                 {
-                    logger.Warning(string.Format(Messages.INVALID_BOOLEAN_TOKEN, tokenTitle, defaultValue));
+                    //logger.Warning(string.Format(Messages.INVALID_BOOLEAN_TOKEN, tokenTitle, defaultValue));
                     return defaultValue;
                 }
             }
             else
             {
-                logger.Warning(string.Format(Messages.INVALID_BOOLEAN_TOKEN, tokenTitle, defaultValue));
+                //logger.Warning(string.Format(Messages.INVALID_BOOLEAN_TOKEN, tokenTitle, defaultValue));
                 return defaultValue;
             }
 
@@ -763,103 +749,97 @@ namespace TFSIntegrationConsole
 
             try
             {
-                try
+                using (HttpResponseMessage response = await client.GetAsync(scheduleListUri)) //get schedule Title and/or Id
                 {
-                    using (HttpResponseMessage response = await client.GetAsync(scheduleListUri)) //get schedule Title and/or Id
+                    int statusCode = (int)response.StatusCode;
+                    string status = response.StatusCode.ToString();
+
+                    switch (statusCode)
                     {
-                        int statusCode = (int)response.StatusCode;
-                        string status = response.StatusCode.ToString();
+                        case 200: //SUCCESS
 
-                        switch (statusCode)
-                        {
-                            case 200: //SUCCESS
+                            using (HttpContent content = response.Content)
+                            {
+                                string responseContent = await content.ReadAsStringAsync();
 
-                                using (HttpContent content = response.Content)
+                                JArray jsonScheduleList = JArray.Parse(responseContent);
+
+                                foreach (String rawSchedule in rawScheduleList)
                                 {
-                                    string responseContent = await content.ReadAsStringAsync();
+                                    bool isSuccessfullyMapped = false;
 
-                                    JArray jsonScheduleList = JArray.Parse(responseContent);
-
-                                    foreach (String rawSchedule in rawScheduleList)
+                                    foreach (JObject jsonSchedule in jsonScheduleList)
                                     {
-                                        bool isSuccessfullyMapped = false;
+                                        Guid Id = DefaultTokenGuidValueIfNull("Id", jsonSchedule, logger);
+                                        string Title = DefaultTokenStringValueIfNull("Title", jsonSchedule, logger);
+                                        bool isEnabled = DefaultTokenBooleanIfNull("IsEnabled", jsonSchedule, false, logger);
 
-                                        foreach (JObject jsonSchedule in jsonScheduleList)
+                                        if (Id.ToString().Equals(rawSchedule)) //Id match
                                         {
-                                            Guid Id = DefaultTokenGuidValueIfNull("Id", jsonSchedule, logger);
-                                            string Title = DefaultTokenStringValueIfNull("Title", jsonSchedule, logger);
-                                            bool isEnabled = DefaultTokenBooleanIfNull("IsEnabled", jsonSchedule, false, logger);
-
-                                            if (Id.ToString().Equals(rawSchedule)) //Id match
+                                            if (!schedulesIdTitleDictionary.ContainsValue(Title)) //Avoid repeat
                                             {
-                                                if (!schedulesIdTitleDictionary.ContainsValue(Title)) //Avoid repeat
+                                                if (isEnabled)
                                                 {
-                                                    if (isEnabled)
-                                                    {
-                                                        schedulesIdTitleDictionary.Add(Id, Title);
-                                                        logger.Info(String.Format(Messages.SCHEDULE_DETECTED, Title, rawSchedule));
-                                                    }
-                                                    else
-                                                    {
-                                                        invalidSchedules.Add(new InvalidSchedule(rawSchedule, String.Format(Messages.SCHEDULE_DISABLED, Title, Id)));
-                                                    }
+                                                    schedulesIdTitleDictionary.Add(Id, Title);
+                                                    logger.Info(String.Format(Messages.SCHEDULE_DETECTED, Title, rawSchedule));
                                                 }
-                                                isSuccessfullyMapped = true;
-                                            }
-
-                                            if (Title.Equals(rawSchedule)) //Title match 
-                                            {
-                                                if (!schedulesIdTitleDictionary.ContainsKey(Id)) //Avoid repeat
+                                                else
                                                 {
-                                                    if (isEnabled)
-                                                    {
-                                                        schedulesIdTitleDictionary.Add(Id, rawSchedule);
-                                                        logger.Info(String.Format(Messages.SCHEDULE_DETECTED, rawSchedule, Id));
-                                                    }
-                                                    else
-                                                    {
-                                                        invalidSchedules.Add(new InvalidSchedule(rawSchedule, string.Format(Messages.SCHEDULE_DISABLED, Title, Id)));
-                                                    }
+                                                    invalidSchedules.Add(new InvalidSchedule(rawSchedule, String.Format(Messages.SCHEDULE_DISABLED, Title, Id)));
                                                 }
-                                                isSuccessfullyMapped = true;
                                             }
+                                            isSuccessfullyMapped = true;
                                         }
 
-                                        if (!isSuccessfullyMapped)
-                                            invalidSchedules.Add(new InvalidSchedule(rawSchedule, Messages.NO_SUCH_SCHEDULE));
+                                        if (Title.Equals(rawSchedule)) //Title match 
+                                        {
+                                            if (!schedulesIdTitleDictionary.ContainsKey(Id)) //Avoid repeat
+                                            {
+                                                if (isEnabled)
+                                                {
+                                                    schedulesIdTitleDictionary.Add(Id, rawSchedule);
+                                                    logger.Info(String.Format(Messages.SCHEDULE_DETECTED, rawSchedule, Id));
+                                                }
+                                                else
+                                                {
+                                                    invalidSchedules.Add(new InvalidSchedule(rawSchedule, string.Format(Messages.SCHEDULE_DISABLED, Title, Id)));
+                                                }
+                                            }
+                                            isSuccessfullyMapped = true;
+                                        }
                                     }
+
+                                    if (!isSuccessfullyMapped)
+                                        invalidSchedules.Add(new InvalidSchedule(rawSchedule, Messages.NO_SUCH_SCHEDULE));
                                 }
+                            }
 
-                                break;
+                            break;
 
-                            case 401://INVALID ACCESS KEY
-                                StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
-                                throw new Exception(errorMessage401.ToString());
+                        case 401://INVALID ACCESS KEY
+                            StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
+                            errorMessage401.AppendLine(Messages.SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT);
+                            throw new Exception(errorMessage401.ToString());
 
-                            case 500://CONTROLLER ERROR
-                                StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
-                                throw new Exception(errorMessage500.ToString());
+                        case 500://CONTROLLER ERROR
+                            StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                            errorMessage500.AppendLine(Messages.SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT);
+                            throw new Exception(errorMessage500.ToString());
 
-                            default:
-                                String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
-                                throw new Exception(errorMessage);
-                        }
+                        default:
+                            StringBuilder errorMessage = new StringBuilder(String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage.AppendLine(Messages.SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT);
+                            throw new Exception(errorMessage.ToString());
                     }
-
-                   
-                }
-                catch (HttpRequestException e)
-                {
-                    String connectionErrorMessage = String.Format(Messages.COULD_NOT_CONNECT_TO, e.Message);
-                    throw new Exception(connectionErrorMessage);
                 }
             }
-            catch (Exception e)
+            catch (HttpRequestException e)
             {
-                logger.Error(Messages.SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT);
-                throw e;
+                StringBuilder connectionErrorMessage = new StringBuilder(String.Format(Messages.COULD_NOT_CONNECT_TO, e.Message));
+                connectionErrorMessage.AppendLine(Messages.SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT);
+                throw new Exception(connectionErrorMessage.ToString());
             }
 
             return schedulesIdTitleDictionary;
@@ -881,367 +861,412 @@ namespace TFSIntegrationConsole
 
             try
             {
-                try
+                using (HttpResponseMessage response = await client.PutAsync(uri, new StringContent(String.Empty))) //Send PUT request and launch schedule
                 {
-                    using (HttpResponseMessage response = await client.PutAsync(uri, new StringContent(String.Empty))) //Send PUT request and launch schedule
+                    int statusCode = (int)response.StatusCode;
+                    string status = response.StatusCode.ToString();
+
+                    switch (statusCode)
                     {
-                        int statusCode = (int)response.StatusCode;
-                        string status = response.StatusCode.ToString();
+                        case 200://SUCCESS
 
-                        switch (statusCode)
-                        {
-                            case 200://SUCCESS
+                            using (HttpContent content = response.Content)
+                            {
+                                string responseContent = await content.ReadAsStringAsync();
 
-                                using (HttpContent content = response.Content)
-                                {
-                                    string responseContent = await content.ReadAsStringAsync();
+                                JObject jRunId = JObject.Parse(responseContent);
 
-                                    JObject jRunId = JObject.Parse(responseContent);
+                                Guid runId = DefaultTokenGuidValueIfNull("RunId", jRunId, logger);
 
-                                    Guid runId = DefaultTokenGuidValueIfNull("RunId", jRunId, logger);
+                                string successMessage = String.Format(Messages.SCHEDULE_RUN_SUCCESS, scheduleTitle, scheduleId);
+                                logger.Info(Messages.SCHEDULE_CONSOLE_LOG_SEPARATOR);
+                                logger.Info(successMessage);
 
-                                    string successMessage = String.Format(Messages.SCHEDULE_RUN_SUCCESS, scheduleTitle, scheduleId);
-                                    logger.Info(Messages.SCHEDULE_CONSOLE_LOG_SEPARATOR);
-                                    logger.Info(successMessage);
+                                return runId;
+                            }
 
-                                    return runId;
-                                }
+                        case 400:
+                            StringBuilder errorMessage400 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage400.AppendLine(Messages.INVALID_VARIABLE_KEY_NAME);
+                            return OnScheduleRunFailure(errorMessage400, leapworkRun, scheduleId, logger);
 
-                            case 400:
-                                StringBuilder errorMessage400 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage400.AppendLine(Messages.INVALID_VARIABLE_KEY_NAME);
-                                throw new Exception(errorMessage400.ToString());
+                        case 401:
+                            StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage401.AppendLine(string.Format(Messages.INVALID_ACCESS_KEY));
+                            return OnScheduleRunFailure(errorMessage401, leapworkRun, scheduleId, logger);
 
-                            case 401:
-                                StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage401.AppendLine(string.Format(Messages.INVALID_ACCESS_KEY));
-                                throw new Exception(errorMessage401.ToString());
+                        case 404:
+                            StringBuilder errorMessage404 = new StringBuilder(String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage404.AppendLine(string.Format(Messages.NO_SUCH_SCHEDULE_WAS_FOUND, scheduleTitle, scheduleId));
+                            return OnScheduleRunFailure(errorMessage404, leapworkRun, scheduleId, logger);
 
-                            case 404:
-                                StringBuilder errorMessage404 = new StringBuilder(String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage404.AppendLine(string.Format(Messages.NO_SUCH_SCHEDULE_WAS_FOUND, scheduleTitle, scheduleId));
-                                throw new Exception(errorMessage404.ToString());
+                        case 446:
+                            StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
+                            return OnScheduleRunFailure(errorMessage446, leapworkRun, scheduleId, logger);
 
-                            case 446:
-                                StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
-                                throw new Exception(errorMessage446.ToString());
+                        case 455:
+                            StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
+                            return OnScheduleRunFailure(errorMessage455, leapworkRun, scheduleId, logger);
 
-                            case 455:
-                                StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
-                                throw new Exception(errorMessage455.ToString());
+                        case 500:
+                            StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                            return OnScheduleRunFailure(errorMessage500, leapworkRun, scheduleId, logger);
 
-                            case 500:
-                                StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                                errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
-                                throw new Exception(errorMessage500.ToString());
-
-                            default:
-                                String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
-                                throw new Exception(errorMessage);
-                        }
+                        default:
+                            StringBuilder errorMessage = new StringBuilder(String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                            return OnScheduleRunFailure(errorMessage, leapworkRun, scheduleId, logger);
                     }
                 }
-                catch (HttpRequestException e)
-                {
-                    String connectionErrorMessage = String.Format(Messages.COULD_NOT_CONNECT_TO_BUT_WAIT, e.Message);
-                    logger.Error(connectionErrorMessage);
-                    return Guid.Empty; //In case of problems with connection to controller the plugin will be waiting for connection reestablishment
-                }
             }
-            catch (Exception e)
+            catch (HttpRequestException e)
             {
-                String errorMessage = String.Format(Messages.SCHEDULE_RUN_FAILURE, scheduleTitle, scheduleId);
-                logger.Error(errorMessage);
-                logger.Error(e.Message);
-                logger.Error(Messages.PLEASE_CONTACT_SUPPORT);
-                leapworkRun.Error = string.Format("{0}\n{1}", errorMessage, e.StackTrace);
-                leapworkRun.IncErrors();
-                return Guid.Empty;
+                String connectionErrorMessage = String.Format(Messages.COULD_NOT_CONNECT_TO_BUT_WAIT, e.Message);
+                logger.Error(connectionErrorMessage);
+                return Guid.Empty; //In case of problems with connection to controller the plugin will be waiting for connection reestablishment
             }
+        }
+
+        private static Guid OnScheduleRunFailure(StringBuilder errorMessage,LeapworkRun failedRun,Guid scheduleId, SimpleLogger logger)
+        {
+            errorMessage.AppendLine(String.Format(Messages.SCHEDULE_RUN_FAILURE, failedRun.ScheduleTitle, scheduleId));
+            logger.Error(errorMessage.ToString());
+            failedRun.Error = errorMessage.ToString();
+            failedRun.IncErrors();
+            return Guid.Empty;
         }
 
         private static async Task<List<Guid>> GetRunRunItems(HttpClient client, string controllerApiHttpAddress, Guid runId)
         {
             string uri = string.Format(Messages.GET_RUN_ITEMS_IDS_URI, controllerApiHttpAddress, runId.ToString());
 
-            try
+            using (HttpResponseMessage response = await client.GetAsync(uri)) //Send PUT request and launch schedule
             {
-                using (HttpResponseMessage response = await client.GetAsync(uri)) //Send PUT request and launch schedule
+                int statusCode = (int)response.StatusCode;
+                string status = response.StatusCode.ToString();
+
+                switch (statusCode)
                 {
-                    int statusCode = (int) response.StatusCode;
-                    string status = response.StatusCode.ToString();
+                    case 200:
 
-                    switch (statusCode)
-                    {
-                        case 200:
+                        using (HttpContent content = response.Content)
+                        {
+                            string responseContent = await content.ReadAsStringAsync();
 
-                            using (HttpContent content = response.Content)
+                            JObject jsonRunItemIdListObject = JObject.Parse(responseContent);
+
+                            JArray jsonRunItemIdList = jsonRunItemIdListObject.SelectToken("RunItemIds") as JArray;
+
+                            List<Guid> runItems = new List<Guid>();
+
+                            if (jsonRunItemIdList != null)
                             {
-                                string responseContent = await content.ReadAsStringAsync();
-
-                                JObject jsonRunItemIdListObject = JObject.Parse(responseContent);
-
-                                JArray jsonRunItemIdList = jsonRunItemIdListObject.SelectToken("RunItemIds") as JArray;
-
-                                List<Guid> runItems = new List<Guid>();
-
-                                if (jsonRunItemIdList != null)
+                                foreach (JToken jsonRunItemId in jsonRunItemIdList)
                                 {
-                                    foreach (JToken jsonRunItemId in jsonRunItemIdList)
+                                    string strGuid = jsonRunItemId.Value<string>();
+                                    Guid guid;
+                                    if (Guid.TryParse(strGuid, out guid))
                                     {
-                                        string strGuid = jsonRunItemId.Value<string>();
-                                        Guid guid;
-                                        if (Guid.TryParse(strGuid, out guid))
-                                        {
-                                            runItems.Add(guid);
-                                        }
+                                        runItems.Add(guid);
                                     }
                                 }
-                                return runItems;
                             }
+                            return runItems;
+                        }
 
-                           
-                        case 401:
-                            StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
-                            throw new Exception(errorMessage401.ToString());
 
-                        case 404:
-                            StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage404.AppendLine(Messages.NO_SUCH_RUN);
-                            throw new Exception(errorMessage404.ToString());
+                    case 401:
+                        StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
+                        throw new Exception(errorMessage401.ToString());
 
-                        case 446:
-                            StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
-                            throw new Exception(errorMessage446.ToString());
+                    case 404:
+                        StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage404.AppendLine(Messages.NO_SUCH_RUN);
+                        throw new Exception(errorMessage404.ToString());
 
-                        case 455:
-                            StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
-                            throw new Exception(errorMessage455.ToString());
+                    case 446:
+                        StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
+                        throw new Exception(errorMessage446.ToString());
 
-                        case 500:
-                            StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
-                            throw new Exception(errorMessage500.ToString());
+                    case 455:
+                        StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
+                        throw new Exception(errorMessage455.ToString());
 
-                        default:
-                            String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
-                            throw new Exception(errorMessage);
+                    case 500:
+                        StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                        throw new Exception(errorMessage500.ToString());
 
-                    }
+                    default:
+                        String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
+                        throw new Exception(errorMessage);
+
                 }
             }
-            catch (Exception e)
-            {
-                throw e;
-            }
+
         }
 
-        private static async Task<RunItem> GetRunItem(HttpClient client, string controllerApiHttpAddress,  Guid runItemId, string scheduleName, SimpleLogger logger)
+        private static async Task<RunItem> GetRunItem(HttpClient client, string controllerApiHttpAddress,  Guid runItemId, string scheduleName,bool doneStatusAsSuccess ,SimpleLogger logger)
         {
             String uri = string.Format(Messages.GET_RUN_ITEM_URI, controllerApiHttpAddress, runItemId);
 
-            try
+            using (HttpResponseMessage response = await client.GetAsync(uri))
             {
-                using (HttpResponseMessage response = await client.GetAsync(uri))
+                int statusCode = (int)response.StatusCode;
+                string status = response.StatusCode.ToString();
+
+                switch (statusCode)
                 {
-                    int statusCode = (int) response.StatusCode;
-                    string status = response.StatusCode.ToString();
+                    case 200:
 
-                    switch (statusCode)
-                    {
-                        case 200:
+                        using (HttpContent content = response.Content)
+                        {
+                            string responseContent = await content.ReadAsStringAsync();
 
-                            using (HttpContent content = response.Content)
+                            JObject jsonRunItem = JObject.Parse(responseContent);
+
+                            //FlowInfo
+                            JToken jsonFlowInfo = jsonRunItem.SelectToken("FlowInfo");
+
+                            Guid flowId = DefaultTokenGuidValueIfNull("FlowId", jsonFlowInfo, logger);
+
+                            String flowTitle = DefaultTokenStringValueIfNull("FlowTitle", jsonFlowInfo, logger);
+
+
+                            String flowStatus =
+                                DefaultTokenStringValueIfNull("Status", jsonFlowInfo, logger, "NoStatus");
+
+                            //EnvironmentInfo
+                            JToken jsonEnvironmentInfo = jsonRunItem.SelectToken("EnvironmentInfo");
+
+                            Guid environmentId =
+                                DefaultTokenGuidValueIfNull("EnvironmentId", jsonEnvironmentInfo, logger);
+                            String environmentTitle =
+                                DefaultTokenStringValueIfNull("EnvironmentTitle", jsonEnvironmentInfo, logger);
+                            String environmentConnectionType = DefaultTokenStringValueIfNull("ConnectionType",
+                                jsonEnvironmentInfo, logger, "Not defined");
+                            Guid runId = DefaultTokenGuidValueIfNull("RunId", jsonRunItem, logger);
+
+                            String elapsed = DefaultElapsedIfNull(jsonRunItem.SelectToken("Elapsed"));
+                            double seconds = DefaultTokenDoubleValueIfNull("ElapsedSeconds", jsonRunItem, logger, 0);
+
+                            RunItem runItem = new RunItem(flowTitle, flowStatus, seconds, scheduleName);
+
+                            if (!flowStatus.Equals("Initializing") &&
+                                !flowStatus.Equals("Connecting") &&
+                                !flowStatus.Equals("Connected") &&
+                                !flowStatus.Equals("Running") &&
+                                !flowStatus.Equals("NoStatus") &&
+                                !flowStatus.Equals("Passed") &&
+                                !(flowStatus.Equals("Done") && doneStatusAsSuccess))
                             {
-                                string responseContent = await content.ReadAsStringAsync();
 
-                                JObject jsonRunItem = JObject.Parse(responseContent);
+                                Failure keyFrames = GetRunItemKeyframes(client, controllerApiHttpAddress, runItemId,
+                                    runItem, scheduleName, environmentTitle, logger).Result;
 
-                                //FlowInfo
-                                JToken jsonFlowInfo = jsonRunItem.SelectToken("FlowInfo");
+                                runItem.failure = keyFrames;
+                            }
+                            
 
-                                Guid flowId = DefaultTokenGuidValueIfNull("FlowId", jsonFlowInfo, logger);
+                            return runItem;
 
-                                String flowTitle = DefaultTokenStringValueIfNull("FlowTitle", jsonFlowInfo, logger);
+                        }
+
+                    case 401:
+                        StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
+                        throw new Exception(errorMessage401.ToString());
+
+                    case 404:
+                        StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage404.AppendLine(string.Format(Messages.NO_SUCH_RUN_ITEM_WAS_FOUND, runItemId, scheduleName));
+                        throw new Exception(errorMessage404.ToString());
+
+                    case 446:
+                        StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
+                        throw new Exception(errorMessage446.ToString());
+
+                    case 455:
+                        StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
+                        throw new Exception(errorMessage455.ToString());
+
+                    case 500:
+                        StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                        throw new Exception(errorMessage500.ToString());
+
+                    default:
+                        String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
+                        throw new Exception(errorMessage);
+                }
+            }
+
+        }
+
+        private static async Task<Failure> GetRunItemKeyframes(HttpClient client, string controllerApiHttpAddress,Guid runItemId,
+            RunItem runItem, string scheduleName, string environmentTitle, SimpleLogger logger)
+        {
+            String uri = string.Format(Messages.GET_RUN_ITEM_KEYFRAMES, controllerApiHttpAddress, runItemId);
+
+            using (HttpResponseMessage response = await client.GetAsync(uri))
+            {
+                int statusCode = (int)response.StatusCode;
+                string status = response.StatusCode.ToString();
+
+                switch (statusCode)
+                {
+                    case 200:
+
+                        using (HttpContent content = response.Content)
+                        {
+                            string responseContent = await content.ReadAsStringAsync();
+
+                            JArray jsonKeyframes = JArray.Parse(responseContent);
 
 
-                                String flowStatus =
-                                    DefaultTokenStringValueIfNull("Status", jsonFlowInfo, logger, "NoStatus");
+                            if (jsonKeyframes != null)
+                            {
+                                logger.Info(Messages.CASE_CONSOLE_LOG_SEPARATOR);
+                                logger.Info(string.Format(Messages.CASE_INFORMATION, runItem.FlowTitle, runItem.FlowStatus, runItem.ElapsedTime));
 
-                                //EnvironmentInfo
-                                JToken jsonEnvironmentInfo = jsonRunItem.SelectToken("EnvironmentInfo");
+                                StringBuilder fullKeyframes = new StringBuilder("");
 
-                                Guid environmentId =
-                                    DefaultTokenGuidValueIfNull("EnvironmentId", jsonEnvironmentInfo, logger);
-                                String environmentTitle =
-                                    DefaultTokenStringValueIfNull("EnvironmentTitle", jsonEnvironmentInfo, logger);
-                                String environmentConnectionType = DefaultTokenStringValueIfNull("ConnectionType",
-                                    jsonEnvironmentInfo, logger, "Not defined");
-                                Guid runId = DefaultTokenGuidValueIfNull("RunId", jsonRunItem, logger);
-
-                                String elapsed = DefaultElapsedIfNull(jsonRunItem.SelectToken("Elapsed"));
-                                double seconds = DefaultTokenDoubleValueIfNull("ElapsedSeconds", jsonRunItem, logger, 0);
-
-                                RunItem runItem;
-
-                                if (!flowStatus.Equals("Initializing") &&
-                                    !flowStatus.Equals("Connecting") &&
-                                    !flowStatus.Equals("Connected") &&
-                                    !flowStatus.Equals("Running") &&
-                                    !flowStatus.Equals("NoStatus"))
+                                foreach (var jsonKeyFrame in jsonKeyframes)
                                 {
-                                    JArray jsonKeyframes = jsonRunItem.SelectToken("Keyframes") as JArray;
-                                    StringBuilder fullKeyframes = new StringBuilder("");
 
-                                    if (jsonKeyframes != null)
+                                    string level = DefaultTokenStringValueIfNull("Level", jsonKeyFrame, logger, "Trace");
+                                    if (!string.IsNullOrEmpty(level) && !level.Contains("Trace"))
                                     {
+                                        JToken token = jsonKeyFrame.SelectToken("Timestamp").SelectToken("Value");
+                                        var timeStampValue = (DateTime)token.ToObject(typeof(DateTime));
+                                        string timestamp = timeStampValue.ToString("dd-MM-yyyy hh:mm:ss.fff");
 
-                                        logger.Info(string.Format(Messages.CASE_INFORMATION, flowTitle, flowStatus, seconds));
+                                        string logMessage = DefaultTokenStringValueIfNull("LogMessage", jsonKeyFrame, logger);
 
-                                        foreach (var jsonKeyFrame in jsonKeyframes)
-                                        {
+                                        string keyFrame = string.Format(Messages.CASE_STACKTRACE_FORMAT, timestamp, logMessage);
 
-                                            string level =
-                                                DefaultTokenStringValueIfNull("Level", jsonKeyFrame, logger, "Trace");
-                                            if (!string.IsNullOrEmpty(level) && !level.Contains("Trace"))
-                                            {
-                                                JToken token = jsonKeyFrame.SelectToken("Timestamp").SelectToken("Value");
-                                                var timeStampValue = (DateTime) token.ToObject(typeof(DateTime));
-                                                string timestamp = timeStampValue.ToString("dd-MM-yyyy hh:mm:ss.fff");
+                                        logger.Info(keyFrame);
 
-                                                string logMessage = DefaultTokenStringValueIfNull("LogMessage", jsonKeyFrame, logger);
-
-                                                string keyFrame = string.Format(Messages.CASE_STACKTRACE_FORMAT, timestamp, logMessage);
-
-                                                logger.Info(keyFrame);
-
-                                                fullKeyframes.AppendLine(keyFrame);
-
-                                            }
-
-                                        }
-
-                                        fullKeyframes.AppendLine("Environment: " + environmentTitle);
-                                        logger.Info("Environment: " + environmentTitle);
-                                        fullKeyframes.AppendLine("Schedule: " + scheduleName);
-                                        logger.Info("Schedule: " + scheduleName);
+                                        fullKeyframes.AppendLine(keyFrame);
 
                                     }
 
-                                    runItem = new RunItem(flowTitle, flowStatus, seconds, fullKeyframes.ToString(),
-                                        scheduleName);
-
                                 }
-                                else
-                                    runItem = new RunItem(flowTitle, flowStatus, seconds, scheduleName);
 
-                                return runItem;
+                                fullKeyframes.AppendLine("Environment: " + environmentTitle);
+                                logger.Info("Environment: " + environmentTitle);
+                                fullKeyframes.AppendLine("Schedule: " + scheduleName);
+                                logger.Info("Schedule: " + scheduleName);
 
+                                return new Failure(fullKeyframes.ToString());
                             }
+                            else
+                            {
+                                logger.Error(Messages.FAILED_TO_PARSE_RESPONSE_KEYFRAME_JSON_ARRAY);
+                                return new Failure(Messages.FAILED_TO_PARSE_RESPONSE_KEYFRAME_JSON_ARRAY);
+                            }
+                        }
 
-                        case 401:
-                            StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
-                            throw new Exception(errorMessage401.ToString());
+                    case 401:
+                        StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
+                        logger.Error(errorMessage401.ToString());
+                        break;
 
-                        case 404:
-                            StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage404.AppendLine(string.Format(Messages.NO_SUCH_RUN_ITEM_WAS_FOUND, runItemId, scheduleName));
-                            throw new Exception(errorMessage404.ToString());
+                    case 404:
+                        StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage404.AppendLine(string.Format(Messages.NO_SUCH_RUN_ITEM_WAS_FOUND, runItemId, scheduleName));
+                        logger.Error(errorMessage404.ToString());
+                        break;
 
-                        case 446:
-                            StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
-                            throw new Exception(errorMessage446.ToString());
+                    case 446:
+                        StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
+                        logger.Error(errorMessage446.ToString());
+                        break;
 
-                        case 455:
-                            StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
-                            throw new Exception(errorMessage455.ToString());
+                    case 455:
+                        StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
+                        logger.Error(errorMessage455.ToString());
+                        break;
 
-                        case 500:
-                            StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
-                            throw new Exception(errorMessage500.ToString());
+                    case 500:
+                        StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                        logger.Error(errorMessage500.ToString());
+                        break;
 
-                        default:
-                            String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
-                            throw new Exception(errorMessage);
-                    }
+                    default:
+                        String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
+                        logger.Error(errorMessage);
+                        break;
                 }
             }
-            catch (Exception e)
-            {
-                throw e;
-            }
+
+            return null;
         }
 
         private static async Task<string> GetRunStatus(HttpClient client, string controllerApiHttpAddress, Guid runId, SimpleLogger logger)
         {
             String uri = string.Format(Messages.GET_RUN_STATUS_URI, controllerApiHttpAddress, runId);
 
-            try
+            using (HttpResponseMessage response = await client.GetAsync(uri))
             {
-                using (HttpResponseMessage response = await client.GetAsync(uri))
+                int statusCode = (int)response.StatusCode;
+                string status = response.StatusCode.ToString();
+
+                switch (statusCode)
                 {
-                    int statusCode = (int) response.StatusCode;
-                    string status = response.StatusCode.ToString();
+                    case 200:
 
-                    switch (statusCode)
-                    {
-                        case 200:
+                        using (HttpContent content = response.Content)
+                        {
+                            string responseContent = await content.ReadAsStringAsync();
 
-                            using (HttpContent content = response.Content)
-                            {
-                                string responseContent = await content.ReadAsStringAsync();
+                            JObject jsonRunStatus = JObject.Parse(responseContent);
 
-                                JObject jsonRunStatus = JObject.Parse(responseContent);
+                            string runStatus = DefaultTokenStringValueIfNull("Status", jsonRunStatus, logger, "Queued");
 
-                                string runStatus = DefaultTokenStringValueIfNull("Status", jsonRunStatus, logger,"Queued");
+                            return runStatus;
+                        }
 
-                                return runStatus;
-                            }
+                    case 401:
+                        StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
+                        throw new Exception(errorMessage401.ToString());
 
-                        case 401:
-                            StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
-                            throw new Exception(errorMessage401.ToString());
+                    case 404:
+                        StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage404.AppendLine(Messages.NO_SUCH_RUN);
+                        throw new Exception(errorMessage404.ToString());
 
-                        case 404:
-                            StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage404.AppendLine(Messages.NO_SUCH_RUN);
-                            throw new Exception(errorMessage404.ToString());
+                    case 446:
+                        StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
+                        throw new Exception(errorMessage446.ToString());
 
-                        case 446:
-                            StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
-                            throw new Exception(errorMessage446.ToString());
+                    case 455:
+                        StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
+                        throw new Exception(errorMessage455.ToString());
 
-                        case 455:
-                            StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
-                            throw new Exception(errorMessage455.ToString());
-
-                        case 500:
-                            StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
-                            throw new Exception(errorMessage500.ToString());
-                        default:
-                            String errorMessage = string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
-                            throw new Exception(errorMessage);
-                    }
+                    case 500:
+                        StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                        throw new Exception(errorMessage500.ToString());
+                    default:
+                        String errorMessage = string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
+                        throw new Exception(errorMessage);
                 }
             }
-            catch (Exception e)
-            {
-                throw e;
-            }
-
         }
 
         private static async Task<bool> StopRun(HttpClient client, string controllerApiHttpAddress, Guid runId, string scheduleName, SimpleLogger logger)
@@ -1250,63 +1275,66 @@ namespace TFSIntegrationConsole
 
             logger.Error(String.Format(Messages.STOPPING_RUN, scheduleName, runId));
             String uri = String.Format(Messages.STOP_RUN_URI, controllerApiHttpAddress, runId);
-            try
+
+            using (HttpResponseMessage response = await client.GetAsync(uri))
             {
-                using (HttpResponseMessage response = await client.GetAsync(uri))
+                int statusCode = (int)response.StatusCode;
+                string status = response.StatusCode.ToString();
+
+                switch (statusCode)
                 {
-                    int statusCode = (int)response.StatusCode;
-                    string status = response.StatusCode.ToString();
+                    case 200:
 
-                    switch (statusCode)
-                    {
-                        case 200:
+                        using (HttpContent content = response.Content)
+                        {
+                            string responseContent = await content.ReadAsStringAsync();
 
-                            using (HttpContent content = response.Content)
-                            {
-                                string responseContent = await content.ReadAsStringAsync();
+                            JObject jsonOperationResult = JObject.Parse(responseContent);
 
-                                JObject jsonOperationResult = JObject.Parse(responseContent);
+                            isSuccessfullyStopped = DefaultTokenBooleanIfNull("OperationCompleted", jsonOperationResult, isSuccessfullyStopped, logger);
+                        }
+                        break;
+                    case 401:
+                        StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
+                        errorMessage401.AppendLine(String.Format(Messages.STOP_RUN_FAIL, scheduleName, runId));
+                        logger.Error(errorMessage401.ToString());
+                        break;
 
-                                bool stopResult = DefaultTokenBooleanIfNull("OperationCompleted", jsonOperationResult, isSuccessfullyStopped, logger);
+                    case 404:
+                        StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage404.AppendLine(string.Format(Messages.NO_SUCH_RUN_WAS_FOUND, runId, scheduleName));
+                        errorMessage404.AppendLine(String.Format(Messages.STOP_RUN_FAIL, scheduleName, runId));
+                        logger.Error(errorMessage404.ToString());
+                        break;
 
-                                return stopResult;
-                            }
+                    case 446:
+                        StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
+                        errorMessage446.AppendLine(String.Format(Messages.STOP_RUN_FAIL, scheduleName, runId));
+                        logger.Error(errorMessage446.ToString());
+                        break;
 
-                        case 401:
-                            StringBuilder errorMessage401 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage401.AppendLine(Messages.INVALID_ACCESS_KEY);
-                            throw new Exception(errorMessage401.ToString());
+                    case 455:
+                        StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
+                        errorMessage455.AppendLine(String.Format(Messages.STOP_RUN_FAIL, scheduleName, runId));
+                        logger.Error(errorMessage455.ToString());
+                        break;
 
-                        case 404:
-                            StringBuilder errorMessage404 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage404.AppendLine(string.Format(Messages.NO_SUCH_RUN_WAS_FOUND, runId, scheduleName));
-                            throw new Exception(errorMessage404.ToString());
+                    case 500:
+                        StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                        errorMessage500.AppendLine(String.Format(Messages.STOP_RUN_FAIL, scheduleName, runId));
+                        logger.Error(errorMessage500.ToString());
+                        break;
 
-                        case 446:
-                            StringBuilder errorMessage446 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage446.AppendLine(Messages.NO_DISK_SPACE);
-                            throw new Exception(errorMessage446.ToString());
-
-                        case 455:
-                            StringBuilder errorMessage455 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage455.AppendLine(Messages.DATABASE_NOT_RESPONDING);
-                            throw new Exception(errorMessage455.ToString());
-
-                        case 500:
-                            StringBuilder errorMessage500 = new StringBuilder(string.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
-                            errorMessage500.AppendLine(Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
-                            throw new Exception(errorMessage500.ToString());
-
-                        default:
-                            String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
-                            throw new Exception(errorMessage);
-                    }
+                    default:
+                        StringBuilder errorMessage = new StringBuilder(String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status));
+                        errorMessage.AppendLine(String.Format(Messages.STOP_RUN_FAIL, scheduleName, runId));
+                        logger.Error(errorMessage.ToString());
+                        break;
                 }
-            }
-            catch (Exception e)
-            {
-                logger.Error(String.Format(Messages.STOP_RUN_FAIL, scheduleName, runId));
-                logger.Error(e.Message);
             }
 
             return isSuccessfullyStopped;
@@ -1331,26 +1359,25 @@ namespace TFSIntegrationConsole
             }
         }
 
+
         public static string Call(string leapworkHostname,string leapworkPort, string leapworkAccessKey, string leapworkTime, string leapworkDoneStatus, string leapworkReport, string leapworkLog, string leapworkIds, string leapworkTitles)
         {
 
             SimpleLogger logger = new SimpleLogger(leapworkLog);
 
-            
-
-            logger.Info(String.Format("Leapwork hostname: {0}", leapworkHostname));
-            logger.Info(String.Format("Leapwork port: {0}", leapworkPort));
-
+            logger.Info(string.Format(Messages.INPUT_VALUES_MESSAGE));
+            logger.Info(string.Format(Messages.CASE_CONSOLE_LOG_SEPARATOR));
+            logger.Info(string.Format(Messages.INPUT_HOSTNAME_VALUE, leapworkHostname));
+            logger.Info(string.Format(Messages.INPUT_PORT_VALUE, leapworkPort));
+            logger.Info(string.Format(Messages.INPUT_ACCESS_KEY_VALUE, leapworkAccessKey));
+            logger.Info(string.Format(Messages.INPUT_REPORT_VALUE, leapworkReport));
+            logger.Info(string.Format(Messages.INPUT_LOG_FILEPATH_VALUE, leapworkLog));
+            logger.Info(string.Format(Messages.INPUT_SCHEDULE_NAMES_VALUE, leapworkTitles));
+            logger.Info(string.Format(Messages.INPUT_SCHEDULE_IDS_VALUE, leapworkIds));
+            logger.Info(string.Format(Messages.INPUT_DELAY_VALUE, leapworkTime));
+            logger.Info(string.Format(Messages.INPUT_DONE_VALUE, leapworkDoneStatus));
             string controllerApiHttpAddress = GetControllerApiHttpAddress(leapworkHostname, leapworkPort, logger);
-
-            logger.Info(String.Format("Leapwork Controller URL: {0}", controllerApiHttpAddress));
-            logger.Info(String.Format("Leapwork Access Key: {0}", leapworkAccessKey));
-            logger.Info(String.Format("Time Delay: {0}", leapworkTime));
-            logger.Info(String.Format("Done Status As: {0}", leapworkDoneStatus));
-            logger.Info(String.Format("Raw report file path: {0}", leapworkReport));
-            logger.Info(String.Format("Log file path: {0}", leapworkLog));
-            logger.Info(String.Format("Schedule ids: {0}", leapworkIds));
-            logger.Info(String.Format("Schedule names: {0}", leapworkTitles));
+            logger.Info(String.Format(Messages.INPUT_LEAPWORK_CONTROLLER_URL, controllerApiHttpAddress));
 
             String junitReportPath = GetJunitReportFilePath(leapworkReport); //checks if .xml in the path exists
             logger.Info(String.Format("Full Report file path: {0}", junitReportPath));
@@ -1360,6 +1387,7 @@ namespace TFSIntegrationConsole
             List<String> rawScheduleList = GetRawScheduleList(leapworkIds, leapworkTitles);
 
             int timeDelay = GetTimeDelay(leapworkTime,logger);
+            bool isDoneStatusIsSuccess = leapworkDoneStatus.Equals("Success");
 
             Dictionary<Guid, LeapworkRun> resultsMap = new Dictionary<Guid, LeapworkRun>();
 
@@ -1372,8 +1400,6 @@ namespace TFSIntegrationConsole
                     schedulesIdTitleDictionary = GetSchedulesIdTitleDictionary(client,controllerApiHttpAddress, rawScheduleList, invalidSchedules, logger).Result;
                     rawScheduleList.Clear();
                     rawScheduleList = null;//don't need that anymore
-
-                    
 
                     List<Guid> schIdsList = new List<Guid>(schedulesIdTitleDictionary.Keys);
                     schIdsList.Reverse();
@@ -1391,7 +1417,7 @@ namespace TFSIntegrationConsole
                         {
                             resultsMap.Add(runId, leapworkRun);
                             leapworkRun.RunId = runId.ToString();
-                            CollectScheduleRunResults(client, controllerApiHttpAddress, runId, schTitle, timeDelay, leapworkDoneStatus, leapworkRun, logger);
+                            CollectScheduleRunResults(client, controllerApiHttpAddress, runId, schTitle, timeDelay, isDoneStatusIsSuccess, leapworkRun, logger);
                         }
                         else
                         {
@@ -1421,6 +1447,7 @@ namespace TFSIntegrationConsole
 
                 List<LeapworkRun> resultRuns = new List<LeapworkRun>(resultsMap.Values);
 
+                logger.Info(Messages.TOTAL_SEPARATOR);
                 foreach (LeapworkRun leapworkRun in resultRuns)
                 {
                     buildResult.Runs.Add(leapworkRun);
@@ -1429,8 +1456,17 @@ namespace TFSIntegrationConsole
                     buildResult.AddErrors(leapworkRun.Errors);
                     leapworkRun.Total = leapworkRun.Passed + leapworkRun.Failed;
                     buildResult.AddTotalTime(leapworkRun.Time);
+                    logger.Info(string.Format(Messages.SCHEDULE_TITLE, leapworkRun.ScheduleTitle));
+                    logger.Info(string.Format(Messages.CASES_PASSED, leapworkRun.Passed));
+                    logger.Info(string.Format(Messages.CASES_FAILED, leapworkRun.Failed));
+                    logger.Info(string.Format(Messages.CASES_ERRORED, leapworkRun.Errors));
                 }
                 buildResult.TotalTests = buildResult.FailedTests + buildResult.PassedTests;
+                
+                logger.Info(Messages.TOTAL_SEPARATOR);
+                logger.Info(string.Format(Messages.TOTAL_CASES_PASSED, buildResult.PassedTests));
+                logger.Info(string.Format(Messages.TOTAL_CASES_FAILED, buildResult.FailedTests));
+                logger.Info(string.Format(Messages.TOTAL_CASES_ERROR, buildResult.Errors));
 
                 CreateJunitReport(junitReportPath, buildResult, logger);
 
@@ -1438,6 +1474,7 @@ namespace TFSIntegrationConsole
 
                 if (buildResult.Errors > 0 || buildResult.FailedTests > 0 || invalidSchedules.Count > 0)
                 {
+                    logger.Info(Messages.ERROR_NOTIFICATION);
                     logger.Info(Messages.BUILD_SUCCEEDED_WITH_ISSUES);
                     return Messages.BUILD_SUCCEEDED_WITH_ISSUES;
                 }
@@ -1467,12 +1504,12 @@ namespace TFSIntegrationConsole
 
         }
 
-        private static void CollectScheduleRunResults(HttpClient client, string controllerApiHttpAddress,  Guid runId, string scheduleName, int timeDelay, string doneStatusAs, LeapworkRun resultRun, SimpleLogger logger)
+        private static void CollectScheduleRunResults(HttpClient client, string controllerApiHttpAddress,  Guid runId, string scheduleName, int timeDelay, bool isDoneStatusAsSuccess, LeapworkRun resultRun, SimpleLogger logger)
         {
             List<Guid> runItemsId = new List<Guid>();
 
-        try
-        {
+			try
+			{
                 bool isStillRunning = true;
 
                 do
@@ -1492,7 +1529,7 @@ namespace TFSIntegrationConsole
                     for (int i = executedRunItems.Count - 1; i >= 0; i--)
                     {
                         Guid runItemId = executedRunItems[i];
-                        RunItem runItem = GetRunItem(client, controllerApiHttpAddress, runItemId, scheduleName, logger).Result;
+                        RunItem runItem = GetRunItem(client, controllerApiHttpAddress, runItemId, scheduleName, isDoneStatusAsSuccess, logger).Result;
 
                         String status = runItem.FlowStatus;
 
@@ -1524,7 +1561,7 @@ namespace TFSIntegrationConsole
                                 break;
                             case "Done":
                                 resultRun.RunItems.Add(runItem);
-                                if (doneStatusAs.Equals("Success"))
+                                if (isDoneStatusAsSuccess)
                                     resultRun.IncPassed();
                                 else
                                     resultRun.IncFailed();
@@ -1544,6 +1581,9 @@ namespace TFSIntegrationConsole
                             isStillRunning = false;
                     }
 
+					if (isStillRunning)
+                        logger.Info(string.Format("The schedule status is already '{0}' - wait a minute...", runStatus));
+
                 }
                 while (isStillRunning);
 
@@ -1560,7 +1600,7 @@ namespace TFSIntegrationConsole
                     RunItem invalidItem = new RunItem("Aborted run", "Cancelled", 0, interruptedExceptionMessage, scheduleName);
                     resultRun.IncErrors();
                     resultRun.RunItems.Add(invalidItem);
-                    throw e;
+                    throw;
                 }
                 else
                 {
@@ -1572,7 +1612,7 @@ namespace TFSIntegrationConsole
 
             }
         }
-    }
+	}
 }
 "@
 
