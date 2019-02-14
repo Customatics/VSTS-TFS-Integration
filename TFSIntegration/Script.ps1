@@ -241,7 +241,7 @@ namespace TFSIntegrationConsole
         }
     }
 
-    [XmlRoot(ElementName = "testsuites")]
+   [XmlRoot(ElementName = "testsuites")]
     public class RunCollection
     {
         public RunCollection()
@@ -274,8 +274,14 @@ namespace TFSIntegrationConsole
         [XmlAttribute(AttributeName = "disabled")]
         public uint Disabled { get; set; }
 
+        [XmlIgnore] private double totalTime;
+
         [XmlAttribute(AttributeName = "time")]
-        public double TotalTime { get; set; }
+        public double TotalTime
+        {
+            get { return Math.Round(totalTime, 2);}
+            set { totalTime = value; }
+        }
 
 
         public void AddPassedTests(uint passed) { this.PassedTests += passed; }
@@ -335,8 +341,14 @@ namespace TFSIntegrationConsole
         [XmlAttribute(AttributeName = "error")]
         public string Error { get; set; }
 
+        [XmlIgnore] private double time;
+
         [XmlAttribute(AttributeName = "time")]
-        public double Time { get; set; }
+        public double Time
+        {
+            get { return Math.Round(time, 2);}
+            set { time = value; }
+        }
 
         [XmlElement(ElementName = "testcase")]
         public List<RunItem> RunItems { get; set; }
@@ -391,8 +403,14 @@ namespace TFSIntegrationConsole
         [XmlAttribute(AttributeName = "status")]
         public string FlowStatus { get; set; }
 
+        [XmlIgnore] private double elapsedTime;
+
         [XmlAttribute(AttributeName = "time")]
-        public double ElapsedTime { get; set; }
+        public double ElapsedTime
+        {
+            get { return Math.Round(elapsedTime, 2);}
+            set { elapsedTime = value; }
+        }
 
         [XmlAttribute(AttributeName = "classname")]
         public string classname { get; set; }

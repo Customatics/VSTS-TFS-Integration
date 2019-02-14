@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "leaptest-vsts-tfs-integration",
     "name": "Leapwork - VSTS/TFS Integration",
-    "version": "3.1.0",
+    "version": "3.1.1",
     "publisher": "customatics",
     "description": "Run Leapwork schedules and get results in JUnit format",
     "public": true,

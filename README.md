@@ -1,16 +1,16 @@
-# Leapwork - VSTS and TFS Integration  
+# Leapwork - Azure DevOps and TFS Integration  
 
-# Joining forces of Leapwork and VSTS/TFS  
-For over 15 years [Customatics](http://customatics.com) team have been delivering high-quality software development and IT service solutions. We think outside the box, sharing fresh ideas to make our products work for you. We are proud to say that the solution we developed [Leapwork automation platform](https://www.leapwork.com/) is now trusted by numerous customers around the word. Now we give you a chance to combine the power of Leapwork automation platform and VSTS/ TFS management systems. Customatics team have created Leapwork integration extension for VSTS/ TFS and you are welcome to benefit from our solution.
+# Joining forces of Leapwork and Azure DevOps  
+For over 15 years [Customatics](http://customatics.com) team have been delivering high-quality software development and IT service solutions. We think outside the box, sharing fresh ideas to make our products work for you. We are proud to say that the solution we developed [Leapwork automation platform](https://www.leapwork.com/) is now trusted by numerous customers around the word. Now we give you a chance to combine the power of Leapwork automation platform and Azure DevOps / TFS management systems. Customatics team have created Leapwork integration extension for Azure DevOps / TFS and you are welcome to benefit from our solution.
 
 # Streamline your test automation  
 A significant part of running automated cases is to monitor, inspect and react on the results. Integration with test management and bug tracking systems enables to you streamline your test automation and development cycles so that not a single flaw of the system is left unnoticed.  
 Leapwork Automation Platform is a mighty automation tool which requires no coding skills or in-depth system knowledge, letting both specialists and management build automation for practically any application.  
-Now it can be used for running smoke, functional, acceptance tests, generating reports and a lot more in VSTS and TFS. 
+Now it can be used for running smoke, functional, acceptance tests, generating reports and a lot more in Azure DevOps and TFS. 
 
 # What’s the deal?  
 The extension makes integration as easy as pie. Here is what you can do:  
-1.	Run automated cases using TFS build tasks or VSTS Agent phases  
+1.	Run automated cases using TFS build tasks or Azure DevOps Agent phases  
 2.	Automatically receive case execution log  
 3.	Build status-based results  
 4.	Generate xml report file in JUnit format  
@@ -34,14 +34,14 @@ Alternatively, you can install it using gallery extension manager. Here is a sma
 6.	Click Confirm button
 7.	Now you are ready to get started!
 
-# Update 3.1.0  
+# Update 3.1.1  
 - For LEAPWORK version 2018.2.262  
-- Fixed bug when JUnit parser interpreted all flows as "Failed"  
+- Fixed bug when JUnit parser failed to parse test results with error "Timespan overflowed because the duration is too long"
 - Uses new Leapwork v3 API, API v2 is not supported
 
 # Let’s get you started!
 1.	 TFS: Add build step "Leapwork Integration" to your build definition.   
-VSTS: Add an agent phase and then add task "Leapwork Integration" to this agent phase.  
+Azure DevOps: Add an agent phase and then add task "Leapwork Integration" to this agent phase.  
 2.	Enter Leapwork controller hostname or IP-address. 
 3.  Enter your LEAPWORK controller API port, by default it is 9001.  
 4.	Enter time delay (in seconds, by default 5 seconds). While schedule is running extension will check schedule state with a specified delay before the schedule is finished.  
@@ -50,7 +50,7 @@ VSTS: Add an agent phase and then add task "Leapwork Integration" to this agent 
 7.	Enter schedule titles you want to run, each one must be entered from a new line.  
 8.	Enter schedule ids, each one must be entered from a new line. Using id is preferable, because schedule title can be changed.  
 9.	TFS: Add Test build step "Publish Test Results" to your build definition.  
-VSTS: Add a task " Publish Test Results " to the previously added agent phase.  
+Azure DevOps: Add a task " Publish Test Results " to the previously added agent phase.  
 10.	Choose JUnit report format. Enter JUnit report file name. It MUST be the same you've entered in point 5. 
 11.	Run your schedule and get results. Enjoy! 
 12.	Check build results in a detailed report, which can be found in Build summary  
