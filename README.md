@@ -34,10 +34,10 @@ Alternatively, you can install it using gallery extension manager. Here is a sma
 6.	Click Confirm button
 7.	Now you are ready to get started!
 
-# Update 3.1.2  
+# Update 3.1.3  
 - For LEAPWORK version 2018.2.262  
 - Fixed bug when JUnit parser failed to parse test results with error "Timespan overflowed because the duration is too long"  
-- Updated description  
+- Updated extension title and description  
 - Uses new Leapwork v3 API, API v2 is not supported
 
 # Let’s get you started!
