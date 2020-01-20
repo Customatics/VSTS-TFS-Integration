@@ -1,118 +1,39 @@
-﻿param(
-	[string]$leapworkHostname,
-	[string]$leapworkPort,
-	[string]$leapworkAccessKey,
-    [string]$leapworkTimeDelay, 
-    [string]$leapworkDoneStatusAs, 
-    [string]$leapworkReport, 
-    [string]$leapworkSchids,
-    [string]$leapworkSchedules
-)
-
-
-function Extract-Nupkg($nupkg, $out)
-{
-    Add-Type -AssemblyName 'System.IO.Compression.FileSystem' # PowerShell lacks native support for zip
-    
-    $zipFile = [IO.Compression.ZipFile]
-    $zipFile::ExtractToDirectory($nupkg, $out)
-}
-
-function Add-NewtonsoftJsonReference
-{
-    $url = 'https://www.nuget.org/api/v2/package/Newtonsoft.Json/11.0.2'
-
-    $directory = $PSScriptRoot, 'bin', 'Newtonsoft.Json' -Join '\'
-    $nupkg = Join-Path $directory "newtonsoft.json.11.0.2.nupkg"
-    $assemblyPath = $directory, 'lib', 'net45',  "Newtonsoft.Json.dll" -Join '\'
-    
-    if (Test-Path $assemblyPath)
-    {
-        # Already downloaded it from a previous script run/function call
-        Add-Type -Path $assemblyPath
-        return
-    }
-    
-    ri -Recurse -Force $directory 2>&1 | Out-Null
-    mkdir -f $directory | Out-Null # prevent this from being interpreted as a return value
-    iwr $url -OutFile $nupkg
-    Extract-Nupkg $nupkg -Out $directory
-    Add-Type -Path $assemblyPath
-}
-
-function Add-NetHttpReference 
-{
-    $url = 'https://www.nuget.org/api/v2/package/System.Net.Http/4.3.3'
-
-    $directory = $PSScriptRoot, 'bin', 'System.Net.Http' -Join '\'
-    $nupkg = Join-Path $directory "system.net.http.4.3.3.nupkg"
-    $assemblyPath = $directory, 'lib', 'net46',  "System.Net.Http.dll" -Join '\'
-    
-    if (Test-Path $assemblyPath)
-    {
-        # Already downloaded it from a previous script run/function call
-        Add-Type -Path $assemblyPath
-        return
-    }
-    
-    ri -Recurse -Force $directory 2>&1 | Out-Null
-    mkdir -f $directory | Out-Null # prevent this from being interpreted as a return value
-    iwr $url -OutFile $nupkg
-    Extract-Nupkg $nupkg -Out $directory
-    Add-Type -Path $assemblyPath
-}
-
-function Add-XMLSerializationReference
-{
-	$url = 'https://www.nuget.org/api/v2/package/System.Xml.XmlSerializer'
-
-    $directory = $PSScriptRoot, 'bin', 'System.Xml.XmlSerializer' -Join '\'
-    $nupkg = Join-Path $directory "System.Xml.XmlSerializer"
-    $assemblyPath = $directory, 'lib', 'netstandard1.3',  "System.Xml.XmlSerializer.dll" -Join '\'
-    
-    if (Test-Path $assemblyPath)
-    {
-        # Already downloaded it from a previous script run/function call
-        Add-Type -Path $assemblyPath
-        return
-    }
-    
-    ri -Recurse -Force $directory 2>&1 | Out-Null
-    mkdir -f $directory | Out-Null # prevent this from being interpreted as a return value
-    iwr $url -OutFile $nupkg
-    Extract-Nupkg $nupkg -Out $directory
-    Add-Type -Path $assemblyPath
-}
+﻿$leapworkHostname = Get-VstsInput -Name leapworkHostname -Require
+$leapworkPort = Get-VstsInput -Name leapworkPort -Require
+$leapworkAccessKey = Get-VstsInput -Name leapworkAccessKey -Require
+$leapworkTimeDelay = Get-VstsInput -Name leapworkTimeDelay
+$leapworkDoneStatusAs = Get-VstsInput -Name leapworkDoneStatusAs -Require
+$leapworkReport = Get-VstsInput -Name leapworkReport -Require
+$leapworkSchids = Get-VstsInput -Name leapworkSchids
+$leapworkSchedules = Get-VstsInput -Name leapworkSchedules -Require
 
 function Get-NewtonsoftJsonAssembly
 {   
-    return $PSScriptRoot, 'bin', "Newtonsoft.Json", 'lib','net45','Newtonsoft.Json.dll' -Join '\' 
+    return $PSScriptRoot, 'ps_modules', "Newtonsoft.Json", 'lib','net45','Newtonsoft.Json.dll' -Join '\' 
 }
 
 function Get-NetHttpAssembly
 {
-    return $PSScriptRoot, 'bin', "System.Net.Http", 'lib','net46','System.Net.Http.dll' -Join '\'  
+    return $PSScriptRoot, 'ps_modules', "System.Net.Http", 'lib','net46','System.Net.Http.dll' -Join '\'  
 }
 
-function Get-XMLSerializationAssembly
-{
-	    return $PSScriptRoot, 'bin', "System.Xml.XmlSerializer", 'lib','netstandard1.3','System.Xml.XmlSerializer.dll' -Join '\'  
-}
+$newtonsoft = Get-NewtonsoftJsonAssembly
+$systemNetHttp = Get-NetHttpAssembly
 
-Add-NetHttpReference
-Add-NewtonsoftJsonReference
-#Add-XMLSerializationReference
+Write-Host "newtonsoft path: $newtonsoft"
+Write-Host "systemNetHttp path: $systemNetHttp"
 
-
+[Reflection.Assembly]::LoadFile($newtonsoft)
+[Reflection.Assembly]::LoadFile($systemNetHttp)
 
 $assemblies = @()
-$assemblies += Get-NewtonsoftJsonAssembly 
-$assemblies += Get-NetHttpAssembly
-#$assemblies += Get-XMLSerializationAssembly
+$assemblies += $newtonsoft 
+$assemblies += $systemNetHttp
 $assemblies += "System.Runtime, Version=4.0.20.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
 $assemblies += "System.IO, Version=4.0.10.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
 $assemblies += "System.Xml.ReaderWriter, Version=4.0.10.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
 $assemblies += "System.Xml, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+
 
 $sourceCode = @"
 using Newtonsoft.Json.Linq;
@@ -130,8 +51,8 @@ using System.Threading.Tasks;
 
 namespace TFSIntegrationConsole
 {
-   
-     public class SimpleLogger
+
+    public class SimpleLogger
     {
         private readonly string DatetimeFormat;
         private readonly string Filename;
@@ -241,7 +162,7 @@ namespace TFSIntegrationConsole
         }
     }
 
-   [XmlRoot(ElementName = "testsuites")]
+    [XmlRoot(ElementName = "testsuites")]
     public class RunCollection
     {
         public RunCollection()
@@ -279,7 +200,7 @@ namespace TFSIntegrationConsole
         [XmlAttribute(AttributeName = "time")]
         public double TotalTime
         {
-            get { return Math.Round(totalTime, 2);}
+            get { return Math.Round(totalTime, 2); }
             set { totalTime = value; }
         }
 
@@ -346,7 +267,7 @@ namespace TFSIntegrationConsole
         [XmlAttribute(AttributeName = "time")]
         public double Time
         {
-            get { return Math.Round(time, 2);}
+            get { return Math.Round(time, 2); }
             set { time = value; }
         }
 
@@ -408,7 +329,7 @@ namespace TFSIntegrationConsole
         [XmlAttribute(AttributeName = "time")]
         public double ElapsedTime
         {
-            get { return Math.Round(elapsedTime, 2);}
+            get { return Math.Round(elapsedTime, 2); }
             set { elapsedTime = value; }
         }
 
@@ -562,7 +483,7 @@ namespace TFSIntegrationConsole
 
     public class Program
     {
-        
+
         //Old versions of MSBuild do not support C# 6 features: Null Condition operators ?. http://bartwullems.blogspot.com.by/2016/03/tfs-build-error-invalid-expression-term.html 
         private static Guid DefaultTokenGuidValueIfNull(String tokenName, JToken parentToken, SimpleLogger logger)
         {
@@ -588,7 +509,7 @@ namespace TFSIntegrationConsole
 
         }
 
-        private static string DefaultTokenStringValueIfNull(String tokenName, JToken parentToken, SimpleLogger logger,  string defaultValue = "")
+        private static string DefaultTokenStringValueIfNull(String tokenName, JToken parentToken, SimpleLogger logger, string defaultValue = "")
         {
             JToken token = parentToken.SelectToken(tokenName);
             if (token != null)
@@ -611,7 +532,7 @@ namespace TFSIntegrationConsole
             {
                 try
                 {
-                    string strDouble = token.Value<string>().Replace(',','.');
+                    string strDouble = token.Value<string>().Replace(',', '.');
                     return double.Parse(strDouble, CultureInfo.InvariantCulture);
                 }
                 catch (Exception)
@@ -672,13 +593,13 @@ namespace TFSIntegrationConsole
 
             int portNumber;
             if (int.TryParse(rawPortStr, out portNumber))
-               return portNumber;
+                return portNumber;
             else
             {
                 logger.Warning(String.Format(Messages.PORT_NUMBER_IS_INVALID, defaultPortNumber));
                 return defaultPortNumber;
             }
-           
+
         }
 
         private static string GetControllerApiHttpAddress(string hostname, string rawPort, SimpleLogger logger)
@@ -855,8 +776,10 @@ namespace TFSIntegrationConsole
             }
             catch (HttpRequestException e)
             {
-                StringBuilder connectionErrorMessage = new StringBuilder(String.Format(Messages.COULD_NOT_CONNECT_TO, e.Message));
+                StringBuilder connectionErrorMessage = new StringBuilder(String.Format(Messages.COULD_NOT_CONNECT_TO, scheduleListUri));
                 connectionErrorMessage.AppendLine(Messages.SCHEDULE_TITLE_OR_ID_ARE_NOT_GOT);
+                connectionErrorMessage.AppendLine(e.Message);
+                connectionErrorMessage.AppendLine(e.StackTrace);
                 throw new Exception(connectionErrorMessage.ToString());
             }
 
@@ -941,13 +864,14 @@ namespace TFSIntegrationConsole
             }
             catch (HttpRequestException e)
             {
-                String connectionErrorMessage = String.Format(Messages.COULD_NOT_CONNECT_TO_BUT_WAIT, e.Message);
+                String connectionErrorMessage = String.Format(Messages.COULD_NOT_CONNECT_TO_BUT_WAIT, uri);
                 logger.Error(connectionErrorMessage);
+                PrintException(logger,e);
                 return Guid.Empty; //In case of problems with connection to controller the plugin will be waiting for connection reestablishment
             }
         }
 
-        private static Guid OnScheduleRunFailure(StringBuilder errorMessage,LeapworkRun failedRun,Guid scheduleId, SimpleLogger logger)
+        private static Guid OnScheduleRunFailure(StringBuilder errorMessage, LeapworkRun failedRun, Guid scheduleId, SimpleLogger logger)
         {
             errorMessage.AppendLine(String.Format(Messages.SCHEDULE_RUN_FAILURE, failedRun.ScheduleTitle, scheduleId));
             logger.Error(errorMessage.ToString());
@@ -1023,13 +947,12 @@ namespace TFSIntegrationConsole
                     default:
                         String errorMessage = String.Format(Messages.ERROR_CODE_MESSAGE, statusCode, status);
                         throw new Exception(errorMessage);
-
                 }
             }
 
         }
 
-        private static async Task<RunItem> GetRunItem(HttpClient client, string controllerApiHttpAddress,  Guid runItemId, string scheduleName,bool doneStatusAsSuccess ,SimpleLogger logger)
+        private static async Task<RunItem> GetRunItem(HttpClient client, string controllerApiHttpAddress, Guid runItemId, string scheduleName, bool doneStatusAsSuccess, SimpleLogger logger)
         {
             String uri = string.Format(Messages.GET_RUN_ITEM_URI, controllerApiHttpAddress, runItemId);
 
@@ -1089,10 +1012,8 @@ namespace TFSIntegrationConsole
 
                                 runItem.failure = keyFrames;
                             }
-                            
 
                             return runItem;
-
                         }
 
                     case 401:
@@ -1128,7 +1049,7 @@ namespace TFSIntegrationConsole
 
         }
 
-        private static async Task<Failure> GetRunItemKeyframes(HttpClient client, string controllerApiHttpAddress,Guid runItemId,
+        private static async Task<Failure> GetRunItemKeyframes(HttpClient client, string controllerApiHttpAddress, Guid runItemId,
             RunItem runItem, string scheduleName, string environmentTitle, SimpleLogger logger)
         {
             String uri = string.Format(Messages.GET_RUN_ITEM_KEYFRAMES, controllerApiHttpAddress, runItemId);
@@ -1147,7 +1068,6 @@ namespace TFSIntegrationConsole
                             string responseContent = await content.ReadAsStringAsync();
 
                             JArray jsonKeyframes = JArray.Parse(responseContent);
-
 
                             if (jsonKeyframes != null)
                             {
@@ -1378,7 +1298,7 @@ namespace TFSIntegrationConsole
         }
 
 
-        public static string Call(string leapworkHostname,string leapworkPort, string leapworkAccessKey, string leapworkTime, string leapworkDoneStatus, string leapworkReport, string leapworkLog, string leapworkIds, string leapworkTitles)
+        public static string Call(string leapworkHostname, string leapworkPort, string leapworkAccessKey, string leapworkTime, string leapworkDoneStatus, string leapworkReport, string leapworkLog, string leapworkIds, string leapworkTitles)
         {
 
             SimpleLogger logger = new SimpleLogger(leapworkLog);
@@ -1387,7 +1307,7 @@ namespace TFSIntegrationConsole
             logger.Info(string.Format(Messages.CASE_CONSOLE_LOG_SEPARATOR));
             logger.Info(string.Format(Messages.INPUT_HOSTNAME_VALUE, leapworkHostname));
             logger.Info(string.Format(Messages.INPUT_PORT_VALUE, leapworkPort));
-            logger.Info(string.Format(Messages.INPUT_ACCESS_KEY_VALUE, leapworkAccessKey));
+            //logger.Info(string.Format(Messages.INPUT_ACCESS_KEY_VALUE, leapworkAccessKey));
             logger.Info(string.Format(Messages.INPUT_REPORT_VALUE, leapworkReport));
             logger.Info(string.Format(Messages.INPUT_LOG_FILEPATH_VALUE, leapworkLog));
             logger.Info(string.Format(Messages.INPUT_SCHEDULE_NAMES_VALUE, leapworkTitles));
@@ -1404,7 +1324,7 @@ namespace TFSIntegrationConsole
             List<InvalidSchedule> invalidSchedules = new List<InvalidSchedule>();
             List<String> rawScheduleList = GetRawScheduleList(leapworkIds, leapworkTitles);
 
-            int timeDelay = GetTimeDelay(leapworkTime,logger);
+            int timeDelay = GetTimeDelay(leapworkTime, logger);
             bool isDoneStatusIsSuccess = leapworkDoneStatus.Equals("Success");
 
             Dictionary<Guid, LeapworkRun> resultsMap = new Dictionary<Guid, LeapworkRun>();
@@ -1415,7 +1335,7 @@ namespace TFSIntegrationConsole
                 {
                     client.DefaultRequestHeaders.Add("AccessKey", leapworkAccessKey);
 
-                    schedulesIdTitleDictionary = GetSchedulesIdTitleDictionary(client,controllerApiHttpAddress, rawScheduleList, invalidSchedules, logger).Result;
+                    schedulesIdTitleDictionary = GetSchedulesIdTitleDictionary(client, controllerApiHttpAddress, rawScheduleList, invalidSchedules, logger).Result;
                     rawScheduleList.Clear();
                     rawScheduleList = null;//don't need that anymore
 
@@ -1444,7 +1364,7 @@ namespace TFSIntegrationConsole
                     }
                 }
 
-                
+
                 RunCollection buildResult = new RunCollection();
 
 
@@ -1454,7 +1374,7 @@ namespace TFSIntegrationConsole
 
                     foreach (InvalidSchedule invalidSchedule in invalidSchedules)
                     {
-                        logger.Info(string.Format("{0}: {1}", invalidSchedule.Name, invalidSchedule.StackTrace));
+                        logger.Warning(string.Format("{0}: {1}", invalidSchedule.Name, invalidSchedule.StackTrace));
                         LeapworkRun notFoundLeapworkRun = new LeapworkRun(invalidSchedule.Name);
                         RunItem invalidRunItem = new RunItem("Error", "Error", 0, invalidSchedule.StackTrace, invalidSchedule.Name);
                         notFoundLeapworkRun.RunItems.Add(invalidRunItem);
@@ -1480,7 +1400,7 @@ namespace TFSIntegrationConsole
                     logger.Info(string.Format(Messages.CASES_ERRORED, leapworkRun.Errors));
                 }
                 buildResult.TotalTests = buildResult.FailedTests + buildResult.PassedTests;
-                
+
                 logger.Info(Messages.TOTAL_SEPARATOR);
                 logger.Info(string.Format(Messages.TOTAL_CASES_PASSED, buildResult.PassedTests));
                 logger.Info(string.Format(Messages.TOTAL_CASES_FAILED, buildResult.FailedTests));
@@ -1492,8 +1412,8 @@ namespace TFSIntegrationConsole
 
                 if (buildResult.Errors > 0 || buildResult.FailedTests > 0 || invalidSchedules.Count > 0)
                 {
-                    logger.Info(Messages.ERROR_NOTIFICATION);
-                    logger.Info(Messages.BUILD_SUCCEEDED_WITH_ISSUES);
+                    logger.Warning(Messages.ERROR_NOTIFICATION);
+                    logger.Warning(Messages.BUILD_SUCCEEDED_WITH_ISSUES);
                     return Messages.BUILD_SUCCEEDED_WITH_ISSUES;
                 }
                 else
@@ -1513,7 +1433,21 @@ namespace TFSIntegrationConsole
                 else
                 {
                     logger.Error(Messages.PLUGIN_ERROR_FINISH);
-                    logger.Error(e.Message);
+                    PrintException(logger, e);
+
+                    var aggregateException = e as AggregateException; //C# 6 feature are not supported
+                    if (aggregateException != null && aggregateException.InnerExceptions != null)
+                    {
+                        var hasInnerException = aggregateException.InnerException != null;
+                        foreach (var innerException in aggregateException.InnerExceptions)
+                        {
+                            if (hasInnerException == false || hasInnerException && innerException != aggregateException.InnerException)
+                            {
+                                PrintException(logger, innerException);
+                            }
+                        }
+                    }
+
                     logger.Error(Messages.PLEASE_CONTACT_SUPPORT);
                     logger.Error(Messages.BUILD_FAILED);
                     return Messages.BUILD_FAILED;
@@ -1522,12 +1456,22 @@ namespace TFSIntegrationConsole
 
         }
 
-        private static void CollectScheduleRunResults(HttpClient client, string controllerApiHttpAddress,  Guid runId, string scheduleName, int timeDelay, bool isDoneStatusAsSuccess, LeapworkRun resultRun, SimpleLogger logger)
+        private static void PrintException(SimpleLogger logger, Exception e)
+        {
+            logger.Error(e.Message);
+            logger.Error(e.StackTrace);
+            if (e.InnerException != null)
+            {
+                PrintException(logger, e.InnerException);
+            }
+        }
+
+        private static void CollectScheduleRunResults(HttpClient client, string controllerApiHttpAddress, Guid runId, string scheduleName, int timeDelay, bool isDoneStatusAsSuccess, LeapworkRun resultRun, SimpleLogger logger)
         {
             List<Guid> runItemsId = new List<Guid>();
 
-			try
-			{
+            try
+            {
                 bool isStillRunning = true;
 
                 do
@@ -1535,7 +1479,7 @@ namespace TFSIntegrationConsole
 
                     Task.Delay(timeDelay * 1000).Wait();
 
-                    List<Guid> executedRunItems = GetRunRunItems(client, controllerApiHttpAddress,  runId).Result;
+                    List<Guid> executedRunItems = GetRunRunItems(client, controllerApiHttpAddress, runId).Result;
 
                     foreach (Guid guid in runItemsId)
                     {
@@ -1591,7 +1535,7 @@ namespace TFSIntegrationConsole
 
                     runItemsId.AddRange(executedRunItems);
 
-                    String runStatus = GetRunStatus(client, controllerApiHttpAddress,runId, logger).Result;
+                    String runStatus = GetRunStatus(client, controllerApiHttpAddress, runId, logger).Result;
                     if (runStatus.Equals("Finished"))
                     {
                         List<Guid> allExecutedRunItems = GetRunRunItems(client, controllerApiHttpAddress, runId).Result;
@@ -1599,7 +1543,7 @@ namespace TFSIntegrationConsole
                             isStillRunning = false;
                     }
 
-					if (isStillRunning)
+                    if (isStillRunning)
                         logger.Info(string.Format("The schedule status is already '{0}' - wait a minute...", runStatus));
 
                 }
@@ -1622,7 +1566,7 @@ namespace TFSIntegrationConsole
                 }
                 else
                 {
-                    logger.Error(e.StackTrace);
+                    PrintException(logger, e);
                     RunItem invalidItem = new RunItem("Invalid run", "Error", 0, e.StackTrace, scheduleName);
                     resultRun.IncErrors();
                     resultRun.RunItems.Add(invalidItem);
@@ -1630,7 +1574,7 @@ namespace TFSIntegrationConsole
 
             }
         }
-	}
+    }
 }
 "@
 
@@ -1656,8 +1600,6 @@ else
 {
 	Write-Output "##vso[task.complete result=Failed;]DONE"
 }
-
-#Write-Output "##vso[task.addattachment type=Distributedtask.Core.Summary;name=Leaptest-TFS Integration Console Output;]$logFile"
 
 Write-Output "##vso[build.uploadlog]$logFile"
 

@@ -34,28 +34,29 @@ Alternatively, you can install it using gallery extension manager. Here is a sma
 6.	Click Confirm button
 7.	Now you are ready to get started!
 
-# Update 3.1.3  
-- For LEAPWORK version 2018.2.262  
-- Fixed bug when JUnit parser failed to parse test results with error "Timespan overflowed because the duration is too long"  
-- Updated extension title and description  
-- Uses new Leapwork v3 API, API v2 is not supported
+# Update 4.0.0  
+- For LEAPWORK version 2019.2.635  
+- Now works using Powershell 3. No more warning about deprecated task execution handler  
+- More detailed error logging  
+- If you already has installed previous version plugin, just update extension, and do not forget to select version "4.*" in step configuration, if such functionality exists.  
 
 # Let’s get you started!
 1.	 TFS: Add build step "Leapwork Integration" to your build definition.   
 Azure DevOps: Add an agent phase and then add task "Leapwork Integration" to this agent phase.  
 2.	Enter Leapwork controller hostname or IP-address. 
 3.  Enter your LEAPWORK controller API port, by default it is 9001.  
-4.	Enter time delay (in seconds, by default 5 seconds). While schedule is running extension will check schedule state with a specified delay before the schedule is finished.  
-5.	Select how the extension should process "Done" status: “Success” or “Failed”.  
-6.	Enter JUnit report file name. The default name is "report.xml".  
-7.	Enter schedule titles you want to run, each one must be entered from a new line.  
-8.	Enter schedule ids, each one must be entered from a new line. Using id is preferable, because schedule title can be changed.  
-9.	TFS: Add Test build step "Publish Test Results" to your build definition.  
+4.  Enter your API access key. You can find it in Leapwork controller Settings section.  
+5.	Enter time delay (in seconds, by default 5 seconds). While schedule is running extension will check schedule state with a specified delay before the schedule is finished.  
+6.	Select how the extension should process "Done" status: “Success” or “Failed”.  
+7.	Enter JUnit report file name. The default name is "report.xml".  
+8.	Enter schedule titles you want to run, each one must be entered from a new line.  
+9.	Enter schedule ids, each one must be entered from a new line. Using id is preferable, because schedule title can be changed.  
+10.	TFS: Add Test build step "Publish Test Results" to your build definition.  
 Azure DevOps: Add a task " Publish Test Results " to the previously added agent phase.  
-10.	Choose JUnit report format. Enter JUnit report file name. It MUST be the same you've entered in point 5. 
-11.	Run your schedule and get results. Enjoy! 
-12.	Check build results in a detailed report, which can be found in Build summary  
-13.	Download logs if needed.  
+11.	Choose JUnit report format. Enter JUnit report file name. It MUST be the same you've entered in point 5. 
+12.	Run your schedule and get results. Enjoy! 
+13.	Check build results in a detailed report, which can be found in Build summary  
+14.	Download logs if needed.  
 
 # Troubleshooting
 - If you catch an error "No such run [runId]!" after schedule starting, increase time delay parameter.
